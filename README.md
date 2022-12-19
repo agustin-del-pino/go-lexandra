@@ -139,7 +139,7 @@ As you can see before. It was declared as Generic to the Lexer and it propagates
 This Generic indicates the type of the Token Type. In the example it was used the `int` type, but it can be used any type. It's recommend use an Alias Type like `type TokenType int` and defined an `Enum` with the different Token Types.
 
 ### The Registration of a Lex
-By default the lexer as a pre-defined Lex registers, those are and in order of execution:
+By default the lexer has a pre-defined Lex registers, those are and in order of execution:
 - Numbs
 - Strings
 - Words
