@@ -4,7 +4,7 @@ import "fmt"
 
 type LexRun[T any] func(*Cursor, *Lex[T]) Token[T]
 
-type LexerExtension[T any] func(*Cursor, *Tokens[T]) bool
+type LexerExtension[T any] func(*Lexer[T], *Cursor, *Tokens[T]) func() bool
 
 type Lex[T any] struct {
 	AllowedBytes ByteContainer
@@ -12,29 +12,42 @@ type Lex[T any] struct {
 }
 
 type Lexer[T any] struct {
-	numbs      *Lex[T]
-	strings    *Lex[T]
-	words      *Lex[T]
-	delimiters *Lex[T]
-	ignores    ByteContainer
-
+	dlex      *Lex[T]
+	lexs      map[string]*Lex[T]
+	ignores   ByteContainer
 	extension LexerExtension[T]
 }
 
+func (l *Lexer[T]) Get(n string, d bool) *Lex[T] {
+	if lex, ok := l.lexs[n]; !ok {
+		if d {
+			return l.dlex
+		} else {
+			return nil
+		}
+	} else {
+		return lex
+	}
+}
+
+func (l *Lexer[T]) Register(n string, x *Lex[T]) {
+	l.lexs[n] = x
+}
+
 func (l *Lexer[T]) Numbs(x *Lex[T]) {
-	l.numbs = x
+	l.Register("numbs", x)
 }
 
 func (l *Lexer[T]) Strings(x *Lex[T]) {
-	l.strings = x
+	l.Register("strings", x)
 }
 
 func (l *Lexer[T]) Words(x *Lex[T]) {
-	l.words = x
+	l.Register("words", x)
 }
 
 func (l *Lexer[T]) Delimiters(x *Lex[T]) {
-	l.delimiters = x
+	l.Register("delimiters", x)
 }
 
 func (l *Lexer[T]) Extension(e LexerExtension[T]) {
@@ -47,38 +60,45 @@ func (l *Lexer[T]) Tokenize(b []byte) (*Tokens[T], error) {
 
 	c.Advance()
 
+	n := l.Get("numbs", true)
+	s := l.Get("strings", true)
+	w := l.Get("words", true)
+	d := l.Get("delimiters", true)
+
+	e := l.extension(l, c, &t)
+
 	for c.HasChar() {
 		if l.ignores(c.Char) {
 			c.Advance()
 			continue
 		}
 
-		if l.numbs.AllowedBytes(c.Char) {
-			t = append(t, l.numbs.Run(c, l.numbs))
+		if n.AllowedBytes(c.Char) {
+			t = append(t, n.Run(c, n))
 			continue
 		}
 
-		if l.strings.AllowedBytes(c.Char) {
-			t = append(t, l.strings.Run(c, l.strings))
+		if s.AllowedBytes(c.Char) {
+			t = append(t, s.Run(c, s))
 			continue
 		}
 
-		if l.words.AllowedBytes(c.Char) {
-			t = append(t, l.words.Run(c, l.words))
+		if w.AllowedBytes(c.Char) {
+			t = append(t, w.Run(c, w))
 			continue
 		}
 
-		if l.delimiters.AllowedBytes(c.Char) {
-			t = append(t, l.delimiters.Run(c, l.delimiters))
+		if d.AllowedBytes(c.Char) {
+			t = append(t, d.Run(c, d))
 			continue
 		}
 
-		if l.extension(c, &t) {
+		if e() {
 			c.Advance()
 			continue
 		}
 
-		return nil, fmt.Errorf("unexcepted token %v", c.Char)
+		return nil, fmt.Errorf("unexcepted token %v:%c", c.Char, c.Char)
 	}
 
 	return &t, nil
@@ -87,18 +107,10 @@ func (l *Lexer[T]) Tokenize(b []byte) (*Tokens[T], error) {
 func NewLexer[T any](i ...byte) *Lexer[T] {
 	return &Lexer[T]{
 		ignores: BytePoints(i...),
-		numbs: &Lex[T]{
+		lexs:    make(map[string]*Lex[T]),
+		dlex: &Lex[T]{
 			AllowedBytes: func(byte) bool { return false },
 		},
-		strings: &Lex[T]{
-			AllowedBytes: func(byte) bool { return false },
-		},
-		words: &Lex[T]{
-			AllowedBytes: func(byte) bool { return false },
-		},
-		delimiters: &Lex[T]{
-			AllowedBytes: func(byte) bool { return false },
-		},
-		extension: func(c *Cursor, t *Tokens[T]) bool { return true },
+		extension: func(*Lexer[T], *Cursor, *Tokens[T]) func() bool { return func() bool { return true } },
 	}
 }

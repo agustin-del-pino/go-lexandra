@@ -1,5 +1,9 @@
 package golexandra
 
+const (
+	eof = 0x00
+)
+
 type Cursor struct {
 	Char     byte
 	Position int
@@ -12,20 +16,19 @@ func (c *Cursor) Advance() {
 		c.Char = c.bytes[c.Position]
 		c.Position += 1
 	} else {
-		c.Char = EOF
+		c.Char = eof
 	}
 }
 
 func (c *Cursor) HasChar() bool {
-	return c.Char != EOF
+	return c.Char != eof
 }
 
 func NewCursor(b []byte) *Cursor {
 	return &Cursor{
 		Position: 0,
-		Char: EOF,
-		bytes: b,
-		length: len(b),
+		Char:     eof,
+		bytes:    b,
+		length:   len(b),
 	}
 }
-
